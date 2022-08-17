@@ -1,25 +1,29 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {View, Text, StyleSheet} from 'react-native';
+import {View, Text, Button, StyleSheet} from 'react-native';
 import RandomNumber from './RandomNumber';
+import shuffle from 'lodash.shuffle';
 
 class Game extends React.Component {
   static propTypes = {
     randomNumberCount: PropTypes.number.isRequired,
     initialSeconds: PropTypes.number.isRequired,
+    onPlayAgain: PropTypes.func.isRequired,
+    onWinning: PropTypes.func.isRequired,
+    score: PropTypes.number.isRequired,
   };
   state = {
     selectedIds: [],
     remainingSeconds: this.props.initialSeconds,
   };
-
+  gameStatus = 'PLAYING';
   randomNumber = Array.from({length: this.props.randomNumberCount}).map(
     () => 1 + Math.floor(10 * Math.random()),
   );
   target = this.randomNumber
     .slice(0, this.props.randomNumberCount - 2)
     .reduce((acc, curr) => acc + curr, 0);
-  // TODO: shuffle the random numbers
+  suffledRandomNumbers = shuffle(this.randomNumber);
 
   isNumberSelected = numberIndex => {
     return this.state.selectedIds.indexOf(numberIndex) >= 0;
@@ -29,17 +33,29 @@ class Game extends React.Component {
       selectedIds: [...prevState.selectedIds, numberIndex],
     }));
   };
-  gameStatus = () => {
-    const sumSelected = this.state.selectedIds.reduce((acc, curr) => {
-      return acc + this.randomNumber[curr];
+  UNSAFE_componentWillUpdate(nextProps, nextState) {
+    if (
+      nextState.selectedIds !== this.state.selectedIds ||
+      nextState.remainingSeconds === 0
+    ) {
+      this.gameStatus = this.calcGameStatus(nextState);
+      if (this.gameStatus !== 'PLAYING') {
+        clearInterval(this.intervalId);
+      }
+    }
+  }
+  calcGameStatus = nextState => {
+    const sumSelected = nextState.selectedIds.reduce((acc, curr) => {
+      return acc + this.suffledRandomNumbers[curr];
     }, 0);
-    if (this.state.remainingSeconds === 0) {
+    if (nextState.remainingSeconds === 0) {
       return 'LOST';
     }
     if (sumSelected < this.target) {
       return 'PLAYING';
     }
     if (sumSelected === this.target) {
+      this.props.onWinning();
       return 'WON';
     }
     if (sumSelected > this.target) {
@@ -64,19 +80,20 @@ class Game extends React.Component {
   componentWillUnmount() {
     clearInterval(this.intervalId);
   }
+  onPressButtonHandler() {}
   render() {
-    const gameStatus = this.gameStatus();
+    const gameStatus = this.gameStatus;
     return (
       <View style={styles.container}>
         <Text style={[styles.target, styles[`STATUS_${gameStatus}`]]}>
           {this.target}
         </Text>
         <View style={styles.randomContainer}>
-          {this.randomNumber.map((randomNumber, index) => (
+          {this.suffledRandomNumbers.map((suffledRandomNumbers, index) => (
             <RandomNumber
               key={index}
               id={index}
-              number={randomNumber}
+              number={suffledRandomNumbers}
               isDisabled={
                 this.isNumberSelected(index) || gameStatus != 'PLAYING'
               }
@@ -84,6 +101,10 @@ class Game extends React.Component {
             />
           ))}
         </View>
+        <View style={styles.scoreBox}>
+          <Text style={styles.score}>Score: {this.props.score}</Text>
+        </View>
+        <Button onPress={this.props.onPlayAgain} title="Play Again" />
         <Text>{this.state.remainingSeconds}</Text>
       </View>
     );
@@ -115,6 +136,19 @@ const styles = StyleSheet.create({
   },
   STATUS_LOST: {
     backgroundColor: 'red',
+  },
+  scoreBox: {
+    flex: 0.5,
+    justifyContent: 'space-around',
+    flexDirection: 'row',
+    marginHorizontal: 70,
+    marginVertical: 100,
+    textAlign: 'center',
+    backgroundColor: 'yellow',
+    paddingTop: 20,
+  },
+  score: {
+    fontSize: 35,
   },
 });
 
